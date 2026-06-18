@@ -11,7 +11,6 @@ import {
   FiSettings,
   FiCheck,
 } from "react-icons/fi";
-import { useForm } from "@formspree/react";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -161,6 +160,8 @@ const offices = {
   },
 };
 
+const FORMSPREE_ID = "xeewwred";
+
 export default function App() {
   const mainRef = useRef(null);
   const overlayRef = useRef(null);
@@ -177,9 +178,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("head");
   const [activeNav, setActiveNav] = useState("home");
   const [formSuccess, setFormSuccess] = useState(false);
-
-  // Formspree
-  const [state, handleFormspreeSubmit] = useForm("xeewwred");
+  const [formError, setFormError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // GSAP ScrollTrigger
   useEffect(() => {
@@ -215,7 +215,7 @@ export default function App() {
   // Intersection Observer for Scroll-Spy Navigation
   useEffect(() => {
     const sections = document.querySelectorAll("section[id]");
-    
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -224,7 +224,7 @@ export default function App() {
           }
         });
       },
-      { rootMargin: "-20% 0px -80% 0px" } 
+      { rootMargin: "-20% 0px -80% 0px" }
     );
 
     sections.forEach((section) => observer.observe(section));
@@ -233,28 +233,6 @@ export default function App() {
       sections.forEach((section) => observer.unobserve(section));
     };
   }, []);
-
-  // Formspree success handler
-  useEffect(() => {
-    if (state.succeeded) {
-      setFormSuccess(true);
-      
-      setFormData({
-        full_name: "",
-        organization: "",
-        email: "",
-        contact_number: "",
-        service: "",
-        message: "",
-      });
-
-      const timer = setTimeout(() => {
-        setFormSuccess(false);
-      }, 5000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [state.succeeded]);
 
   const scrollToSection = (id) => {
     setActiveNav(id);
@@ -265,10 +243,7 @@ export default function App() {
     const topPosition =
       element.getBoundingClientRect().top + window.scrollY - offset;
 
-    window.scrollTo({
-      top: topPosition,
-      behavior: "smooth",
-    });
+    window.scrollTo({ top: topPosition, behavior: "smooth" });
   };
 
   const handleServiceClick = (serviceName) => {
@@ -282,10 +257,55 @@ export default function App() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Submit directly via fetch with JSON — bypasses useForm hook DOM-reading issue
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setFormError(false);
+
+    try {
+      const response = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          full_name: formData.full_name,
+          organization: formData.organization,
+          email: formData.email,
+          contact_number: formData.contact_number,
+          service: formData.service,
+          message: formData.message,
+          _subject: "New project request from Arclane Global website",
+        }),
+      });
+
+      if (response.ok) {
+        setFormSuccess(true);
+        setFormData({
+          full_name: "",
+          organization: "",
+          email: "",
+          contact_number: "",
+          service: "",
+          message: "",
+        });
+
+        setTimeout(() => setFormSuccess(false), 5000);
+      } else {
+        setFormError(true);
+        setTimeout(() => setFormError(false), 5000);
+      }
+    } catch (err) {
+      setFormError(true);
+      setTimeout(() => setFormError(false), 5000);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -356,7 +376,7 @@ export default function App() {
                 tabIndex="0"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault(); 
+                    e.preventDefault();
                     handleServiceClick(srv.title);
                   }
                 }}
@@ -465,7 +485,10 @@ export default function App() {
             Our <span className="text-gradient">Offline Offices</span>
           </h2>
 
-          <div className="contact-container glass-card" style={{ padding: "3rem" }}>
+          <div
+            className="contact-container glass-card"
+            style={{ padding: "3rem" }}
+          >
             <div className="tabs-header">
               {Object.keys(offices).map((officeKey) => (
                 <button
@@ -511,16 +534,7 @@ export default function App() {
           </p>
 
           <div className="contact-container glass-card">
-            <form
-              className="contact-form"
-              onSubmit={handleFormspreeSubmit}
-            >
-              <input
-                type="hidden"
-                name="_subject"
-                value="New project request from Arclane Global website"
-              />
-
+            <form className="contact-form" onSubmit={handleFormSubmit}>
               <input
                 type="text"
                 name="full_name"
@@ -568,7 +582,9 @@ export default function App() {
                 <option value="Website Development">Website Development</option>
                 <option value="App Development">App Development</option>
                 <option value="AI Solutions">AI Solutions</option>
-                <option value="Software Development">Software Development</option>
+                <option value="Software Development">
+                  Software Development
+                </option>
                 <option value="UI/UX Design">UI/UX Design</option>
                 <option value="Business Automation">Business Automation</option>
                 <option value="Other">Other</option>
@@ -585,9 +601,9 @@ export default function App() {
               <button
                 type="submit"
                 className="submit-btn"
-                disabled={state.submitting}
+                disabled={submitting}
               >
-                {state.submitting ? "Sending..." : "Send Project Request"}
+                {submitting ? "Sending..." : "Send Project Request"}
               </button>
 
               {formSuccess && (
@@ -604,8 +620,7 @@ export default function App() {
                 </p>
               )}
 
-              {/* UPDATED ERROR CHECK */}
-              {state.errors && Object.keys(state.errors).length > 0 && (
+              {formError && (
                 <p
                   style={{
                     gridColumn: "1 / -1",
